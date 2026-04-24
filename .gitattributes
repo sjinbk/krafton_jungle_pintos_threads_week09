@@ -1,0 +1,7 @@
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+/pintos/activate text eol=lf
+/pintos/utils/backtrace text eol=lf
+/pintos/utils/pintos text eol=lf
+/pintos/utils/pintos-mkdisk text eol=lf
