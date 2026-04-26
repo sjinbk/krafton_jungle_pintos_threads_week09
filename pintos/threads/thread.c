@@ -27,7 +27,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
-
+static struct list sleeping_list; 
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -108,6 +108,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleeping_list); 
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -587,4 +588,53 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+/* TODO: 다음 단계에서 본문 구현 */
+/* sleeping_list 정렬용: a 가 b 보다 빨리 깨어나면 true */
+static bool
+wake_tick_less (const struct list_elem *a,
+                const struct list_elem *b,
+                void *aux UNUSED) 
+{
+    struct thread *ta = list_entry (a, struct thread, sleep_elem);
+    struct thread *tb = list_entry (b, struct thread, sleep_elem);
+    return ta->wake_tick < tb->wake_tick;
+}
+/* 현재 스레드를 wake_tick 까지 잠재움.
+   sleeping_list 에 정렬 삽입 후 thread_block(). */
+void
+thread_sleep (int64_t wake_tick) 
+{
+    struct thread *cur = thread_current ();
+    enum intr_level old_level;
+
+    ASSERT (!intr_context ());
+
+    old_level = intr_disable ();
+
+    if (cur != idle_thread) {
+        cur->wake_tick = wake_tick;
+        list_insert_ordered (&sleeping_list, &cur->sleep_elem,
+                             wake_tick_less, NULL);
+        thread_block ();
+    }
+
+    intr_set_level (old_level);
+}
+/* sleeping_list 에서 깰 시간이 지난 스레드들을 모두 unblock.
+   list 가 wake_tick 오름차순으로 정렬돼있으므로
+   맨 앞만 검사하면 된다. */
+void
+thread_awake (int64_t now) 
+{
+    while (!list_empty (&sleeping_list)) {
+        struct list_elem *e = list_front (&sleeping_list);
+        struct thread *t = list_entry (e, struct thread, sleep_elem);
+
+        if (t->wake_tick > now)
+            break;
+
+        list_pop_front (&sleeping_list);
+        thread_unblock (t);
+    }
 }
