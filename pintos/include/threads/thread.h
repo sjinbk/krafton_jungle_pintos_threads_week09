@@ -93,7 +93,10 @@ struct thread {
 	int priority;                       /* Priority. */
 
 	/* Shared between thread.c and synch.c. */
+	/* sleep_list 구현 간 timer.c 에도 추가 */
 	struct list_elem elem;              /* List element. */
+
+	int64_t wake_tick;                  /* 스레드가 다시 running 해야하는 시간 (local tick) */
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
