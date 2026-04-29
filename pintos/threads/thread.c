@@ -59,6 +59,8 @@ static void kernel_thread (thread_func *, void *aux);
 static void idle (void *aux UNUSED);
 static struct thread *next_thread_to_run (void);
 static void init_thread (struct thread *, const char *name, int priority);
+static bool thread_priority_precedes (const struct list_elem *, const struct list_elem *, void *aux);
+static void ready_list_insert (struct thread *);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
@@ -240,7 +242,7 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	ready_list_insert (t);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -302,8 +304,8 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+	if (curr != idle_thread) 
+		ready_list_insert (curr);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -409,6 +411,21 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+}
+
+/* Returns true if A should precede B in the ready list. */
+static bool
+thread_priority_precedes (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+	const struct thread *thread_a = list_entry (a, struct thread, elem);
+	const struct thread *thread_b = list_entry (b, struct thread, elem);
+
+	return thread_a->priority > thread_b->priority;
+}
+
+/* Inserts T into the ready list in priority order. */
+static void
+ready_list_insert (struct thread *t) {
+	list_insert_ordered (&ready_list, &t->elem, thread_priority_precedes, NULL);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
