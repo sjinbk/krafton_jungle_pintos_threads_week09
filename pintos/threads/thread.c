@@ -747,8 +747,6 @@ allocate_tid (void) {
 
 	return tid;
 }
-
-
 void thread_sleep(int64_t ticks){
 	struct thread *cur = thread_current();
 	enum intr_level old_level;
