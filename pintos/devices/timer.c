@@ -103,10 +103,15 @@ timer_elapsed (int64_t then) {
    [KO] 대략 TICKS개의 타이머 틱 동안 실행을 중단한다. */
 void
 timer_sleep (int64_t ticks) {
-	int64_t start = timer_ticks ();
+	int64_t start;
 
 	ASSERT (intr_get_level () == INTR_ON);
-	thread_sleep(start+ticks);
+	if (ticks <= 0) {
+		return;
+	}
+
+	start = timer_ticks ();
+	thread_sleep (start + ticks);
 }
 
 /* Suspends execution for approximately MS milliseconds.
