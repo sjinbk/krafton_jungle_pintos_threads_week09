@@ -28,7 +28,7 @@ static struct list sleep_list;
 static unsigned loops_per_tick;
 
 static intr_handler_func timer_interrupt;
-static bool wake_tick_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+static bool wake_tick_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 static void wake_sleeping_threads (void);
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
@@ -108,7 +108,7 @@ timer_sleep (int64_t ticks) {
 	cur = thread_current ();
 
 	cur->wake_tick = timer_ticks () + ticks;
-	list_insert_ordered (&sleep_list, &cur->elem, wake_tick_compare, NULL);
+	list_insert_ordered (&sleep_list, &cur->elem, wake_tick_less, NULL);
 	thread_block ();
 	intr_set_level (old_level);
 }
@@ -147,7 +147,7 @@ timer_interrupt (struct intr_frame *args UNUSED) {
 
 /* 스레드 wake_tick 시간 비교 함수 */
 static bool
-wake_tick_compare (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+wake_tick_less (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
 	const struct thread *thread_a = list_entry (a, struct thread, elem);
 	const struct thread *thread_b = list_entry (b, struct thread, elem);
 
