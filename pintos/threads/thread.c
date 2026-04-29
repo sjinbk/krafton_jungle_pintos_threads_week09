@@ -33,6 +33,8 @@
    [KO] 즉 실행할 준비는 되었지만 실제로 실행 중은 아닌 프로세스들이 들어 있다. */
 static struct list ready_list;
 static struct list sleep_list;
+static struct list wait_list;
+
 
 static int64_t next_tick;
 /* Idle thread.
@@ -263,6 +265,8 @@ thread_create (const char *name, int priority,
 	   [KO] 실행 큐에 추가한다. */
 	thread_unblock (t);
 
+	if (priority > thread_current()->priority)
+			thread_yield();
 	return tid;
 }
 
@@ -303,7 +307,8 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	//list_push_back (&ready_list, &t->elem);
+	list_insert_ordered(&ready_list,&t->elem,cmp_priority,NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -379,7 +384,7 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered(&ready_list,&curr->elem,cmp_priority,NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -389,6 +394,13 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	
+	if(!list_empty(&ready_list)){
+		struct thread *highest = list_entry(list_front(&ready_list),struct thread,elem);
+		if(highest->priority > new_priority){
+			thread_yield();
+		}
+	}
 }
 
 /* Returns the current thread's priority.
@@ -504,6 +516,9 @@ init_thread (struct thread *t, const char *name, int priority) {
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
+	t->init_priority = priority;
+	t->waitonlock = NULL;
+	list_init(&t->donations);
 	t->magic = THREAD_MAGIC;
 }
 
@@ -731,6 +746,7 @@ void thread_sleep(int64_t ticks){
 	intr_set_level (old_level);	
 
 }
+/*우선순위가 제일 높은 thread가 먼저 깨어나야 함. */
 void thread_awake(int64_t ticks){
 	next_tick = INT64_MAX;
 	struct list_elem *slp;
@@ -754,4 +770,56 @@ void update_next_tick(int64_t ticks){
 }
 int64_t get_next_tick(void){
 	return next_tick;
+}
+
+
+/*우선순위 스케쥴링 
+
+	ready list를 스레드 우선순위에 따라 정렬,
+	조건변수 세마포어(락)과 같은 동기화 기본요소에 대한 wait list 우선숭ㄴ위에 따라 정렬
+	선정도 구현, 선점 시점은 쓰레드가 스케쥴러 목록에 추가되는 시점
+	인터럽트가 발생할때마다 선점 가능성을 확인하맆ㄹ요 없음 
+	이스케줄링 알고리즘 운영체제가 새로운 스레드가 스케줄러 목록에 추가될때만
+	 선점가능성을 확인 
+
+	스케줄러 목록에서 실행할 스레드를 선택할때 가장 높은 우선순위를 가진 스레드를 선택해야 함 
+	스케줄러 목록에 새 스레드를 추가할때 운영체제는 실행중인 스레드와 기존 스레드의 우선순위를 ㅣㅂ교해야함
+	새로 추가도니 스레드의 우선순위가 현재 실행중인 스레드보다 높으면 해당 스레드를 스케줄링 해야 함 이러한 규칙은 설정 가능한 스레드에도 적용
+	스레드는 락 세마포어 조건변수 같은 동기화 기본요소를 기다림 
+	락이 사용가능해지거나 세마포어 또는 조건 변수를 사용할수 있게 되면 운영체제는 가장 높은 우선순위를 가진 스레드를 선택함
+	우선순위 범위가 0에서 63까지 순위가 클수록 우선순위가 높음 기본우선순위는 스레드가 처음 생성될때 설정되며 기본값은 31 두가지 함수를 제공 첫번재는 스레드 우선순위를 지정된 값으로 설정하는 함수이고 주어진 스레드의 우선순위를 가져오는 getprioty
+	
+	thread_create 함수 내부에서 스레드 우선 순위에 따라 정렬된 r 리스트를 유지해야 함 따라서 스레드를 생성한 후 스레드를 삽입할때 우선순위 순서에 따라 스레드를 배치해야 하므로 매우 비용이 많이 듬. 
+	두번째는 쓰레드가 ready list 에 추가될때 새로 들어오는 쓰레드의 우선순위를 현재 실행중인 쓰레드의 우선순위와 비교해야 함.
+	wait_list 추가 필요 새로들어오는 쓰레드의 우선순위가 높으면 스케줄러를 호출하여 현재 실행중인 위협을 제거하고 새로들어오는 쓰레드를 cpu로 넘겨야 합니다 
+
+	thread_create, 
+	thread_unblock(struct thread *t), 쓰레드가 unblocked 됐을때 ready_list에 우선순위 순서대로 목록에 추가
+	thread_yield(void),  현재 쓰레드가 yield 하고 ready_list에 우선순위 순서대로 목록에 추가 
+	thread_set_priority(int new_priority) 현재 쓰레드의 우선순위를 set 함 ,ready_list를 재정렬
+
+
+ 
+	pintOS 는 락 획득순서가 선착순임 그래서 우선순위가 높은 쓰레드가 기다릴수 있음 
+	priority inversion 우선순위 높은 프로세스가 낮은 프로세스를 기다리는 상황 발생 
+
+	우선순위 기반 락 락해제 메커니즘을 사용하면 wait list 에서 우선순위로 정렬되어 우선순위가 높은 쓰레드부터 우선 락을 가져감 
+
+	sema_down()
+	cond_wait()
+
+	semaphore
+
+
+
+
+
+
+
+*/
+
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+    struct thread *ta = list_entry(a, struct thread, elem);
+    struct thread *tb = list_entry(b, struct thread, elem);
+    return ta->priority > tb->priority;  // 높은 우선순위가 먼저 오도록
 }

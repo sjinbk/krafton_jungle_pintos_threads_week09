@@ -104,8 +104,12 @@ struct thread {
 	int64_t wakeup_t;
 	/* Shared between thread.c and synch.c.
 	   [KO] thread.c와 synch.c가 함께 사용하는 필드. */
-	struct list_elem elem;              /* List element. [KO] 리스트 원소. */
-
+	struct list_elem elem;
+	/* List element. [KO] 리스트 원소. */
+	struct lock *waitonlock;
+	struct list donations;
+	struct list_elem donation_elem;
+	int init_priority;
 #ifdef USERPROG
 	/* Owned by userprog/process.c.
 	   [KO] userprog/process.c가 소유하고 관리하는 필드. */
@@ -166,5 +170,7 @@ void thread_sleep(int64_t ticks);
 void thread_awake(int64_t ticks);
 void update_next_tick(int64_t ticks);
 int64_t get_next_tick(void);
-
+bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
 #endif /* threads/thread.h [KO] threads/thread.h 헤더의 끝. */
+
+/* 초기 스레드 우선순위는 thread_create()에 인자로 전달.*/
