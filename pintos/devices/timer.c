@@ -17,11 +17,12 @@
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
+/* List of processes in THREAD_BLOCKED state, that is, process
+   that are sleep to ready but not actually ready. */
+static struct list sleep_list;
+
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
-
-/* sleep 상태에 들어간 스레드를 모아놓은 공간 */
-static struct list sleep_list;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
@@ -46,6 +47,7 @@ void timer_init(void)
 	outb(0x40, count >> 8);
 
 	intr_register_ext(0x20, timer_interrupt, "8254 Timer");
+	list_init(&sleep_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -97,14 +99,20 @@ timer_elapsed(int64_t then)
 void timer_sleep(int64_t ticks)
 {
 	int64_t start = timer_ticks();
+	struct thread *curr_t = thread_current();
+	enum intr_level cur_intr_status = intr_get_level();
 
-	ASSERT(intr_get_level() == INTR_ON);
+	intr_disable();
 
-	struct thread *cur = thread_current();
-	cur->awake = start + ticks;
-	list_push_back(&sleep_list, &cur->elem);
-
+	curr_t->awake_tick = start + ticks;
+	list_push_back(&sleep_list, &curr_t->elem);
 	thread_block();
+
+	intr_set_level(cur_intr_status);
+	/* Problem: busy waiting
+	while (timer_elapsed(start) < ticks)
+		thread_yield();
+	*/
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -138,13 +146,20 @@ timer_interrupt(struct intr_frame *args UNUSED)
 	ticks++;
 	thread_tick();
 
-	struct list_elem *head = list_begin(&sleep_list);
-	while (head != list_end(&sleep_list))
+	if (list_empty(&sleep_list))
+		return;
+
+	struct list_elem *start = list_begin(&sleep_list);
+	struct thread *cur_thread;
+	while (start != list_end(&sleep_list))
 	{
-		struct thread *cur = list_entry(head, struct thread, elem);
-		head = list_next(head);
-		if (timer_elapsed(cur->awake) >= ticks)
-			thread_unblock(cur);
+		cur_thread = list_entry(start, struct thread, elem);
+		start = list_next(start);
+		if (cur_thread->awake_tick <= ticks && cur_thread->status == THREAD_BLOCKED)
+		{
+			list_remove(&cur_thread->elem);
+			thread_unblock(cur_thread);
+		}
 	}
 }
 

@@ -92,11 +92,13 @@ struct thread
 	enum thread_status status; /* Thread state. */
 	char name[16];			   /* Name (for debugging purposes). */
 	int priority;			   /* Priority. */
+	int origin_priority;	   /* Original Priority. */
+	struct list donated_list;  /* Donated Priority thread list */
+	struct lock *wait_lock;	   /* wait lock address */
 
 	/* Shared between thread.c and synch.c. */
+	struct list_elem donation_elem;
 	struct list_elem elem; /* List element. */
-
-	int64_t awake;
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -106,6 +108,8 @@ struct thread
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 #endif
+
+	int64_t awake_tick;
 
 	/* Owned by thread.c. */
 	struct intr_frame tf; /* Information for switching */
@@ -126,6 +130,8 @@ void thread_print_stats(void);
 typedef void thread_func(void *aux);
 tid_t thread_create(const char *name, int priority, thread_func *, void *);
 
+bool find_less_priority(const struct list_elem *a, const struct list_elem *b, void *aux);
+
 void thread_block(void);
 void thread_unblock(struct thread *);
 
@@ -145,5 +151,7 @@ int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
 
 void do_iret(struct intr_frame *tf);
+
+void reorder_ready_list(struct thread *target);
 
 #endif /* threads/thread.h */
