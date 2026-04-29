@@ -38,6 +38,15 @@ void cond_wait (struct condition *, struct lock *);
 void cond_signal (struct condition *, struct lock *);
 void cond_broadcast (struct condition *, struct lock *);
 
+
+static void donate_priority(void);
+static void refresh_priority(void);
+static void remove_donations_for_lock(struct lock *lock);
+static bool cmp_donation_priority (const struct list_elem *a,
+                                   const struct list_elem *b,
+                                   void *aux);
+
+
 /* Optimization barrier.
  *
  * The compiler will not reorder operations across an
