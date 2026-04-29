@@ -62,6 +62,11 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+static bool cmp_priority (const struct list_elem *a,
+                          const struct list_elem *b,
+                          void *aux UNUSED);
+void test_max_priority (void);   /* ← 추가 */
+
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -207,10 +212,22 @@ thread_create (const char *name, int priority,
 
 	/* Add to run queue. */
 	thread_unblock (t);
-
+	test_max_priority (); 
 	return tid;
 }
+void
+test_max_priority (void) 
+{
+    if (list_empty (&ready_list))
+        return;
 
+    struct thread *cur = thread_current ();
+    struct list_elem *e = list_front (&ready_list);
+    struct thread *front = list_entry (e, struct thread, elem);
+
+    if (front->priority > cur->priority)
+        thread_yield ();
+}
 /* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
 
@@ -241,7 +258,8 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered (&ready_list, &t->elem,
+	                     cmp_priority, NULL);	
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -304,7 +322,8 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered (&ready_list, &curr->elem,
+		                     cmp_priority, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
@@ -313,6 +332,7 @@ thread_yield (void) {
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	test_max_priority ();
 }
 
 /* Returns the current thread's priority. */
@@ -600,6 +620,18 @@ wake_tick_less (const struct list_elem *a,
     struct thread *tb = list_entry (b, struct thread, sleep_elem);
     return ta->wake_tick < tb->wake_tick;
 }
+
+/* For sorting ready_list: returns true if A has higher priority than B (larger first) */
+static bool
+cmp_priority (const struct list_elem *a,
+              const struct list_elem *b,
+              void *aux UNUSED) 
+{
+    struct thread *ta = list_entry (a, struct thread, elem);
+    struct thread *tb = list_entry (b, struct thread, elem);
+    return ta->priority > tb->priority;
+}
+
 /* 현재 스레드를 wake_tick 까지 잠재움.
    sleeping_list 에 정렬 삽입 후 thread_block(). */
 void
