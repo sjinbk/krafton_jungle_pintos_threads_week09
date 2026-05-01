@@ -132,4 +132,211 @@ bad:  수정 / 됨 / ㅇㅇ
 
 ---
 
+## Pintos userprog 테스트 계획
+
+> 
+> 
+> - 거의 모든 테스트는 `exit()` 정상 종료 + 메시지 출력에 의존 → Sprint 0이 통과해야 다른 스프린트 평가 가능
+> - `read/write` 테스트는 `create/open` 통과 필요
+> - `fork`/`exec`/`wait` 테스트는 파일 시스콜 안정화 후 진행
+> - `rox`(read-only executable)은 `exec` + 파일 IO 모두 필요 → 마지막
+
+---
+
+### Sprint 0 — 인자 전달 & 프로세스 종료
+
+<aside>
+
+**목표:** 사용자 프로그램이 실행되고, 인자를 받고, 정상/비정상 종료 가능
+
+**선결 시스템콜:** `process_exec` 인자 파싱, `exit`, `halt`, 사용자 페이지 폴트 → 종료(-1)
+
+| # | 테스트 | 카테고리 |
+| --- | --- | --- |
+| 1 | args-none | 인자 전달 |
+| 2 | args-single | 인자 전달 |
+| 3 | args-multiple | 인자 전달 |
+| 4 | args-many | 인자 전달 |
+| 5 | args-dbl-space | 인자 전달 |
+| 7 | exit | 기본 종료 |
+| 6 | halt | 기본 종료 |
+| 58 | bad-read | 예외 → -1 종료 |
+| 59 | bad-write | 예외 → -1 종료 |
+| 62 | bad-jump | 예외 → -1 종료 |
+| 60 | bad-read2 | 예외 → -1 종료 |
+| 61 | bad-write2 | 예외 → -1 종료 |
+| 63 | bad-jump2 | 예외 → -1 종료 |
+
+**완료 기준(DoD):** 위 13개 테스트 PASS. `process.c`의 `argument_stack` 구현 완료.
+
+</aside>
+
+---
+
+### Sprint 1 — 파일 시스템 콜 핵심 경로
+
+<aside>
+
+**목표:** create/open/read/write/close 정상 경로 + 사용자 포인터 검증
+
+**선결:** `filesys` 락, `struct file *` ↔ FD 매핑 테이블, `check_address()` 헬퍼
+
+| # | 테스트 | 카테고리 |
+| --- | --- | --- |
+| 9 | create-empty | create |
+| 12 | create-long | create |
+| 8 | create-normal | create |
+| 13 | create-exists | create |
+| 16 | open-missing | open |
+| 15 | open-normal | open |
+| 21 | open-twice | open |
+| 25 | read-normal | read |
+| 28 | read-zero | read |
+| 31 | write-normal | write |
+| 34 | write-zero | write |
+| 22 | close-normal | close |
+
+**DoD:** 위 13개 PASS. FD 0/1(stdin/stdout) 특수 처리 포함.
+
+</aside>
+
+---
+
+### Sprint 2 — 견고성: 잘못된 입력 방어
+
+<aside>
+
+**목표:** 모든 파일 시스콜의 NULL/잘못된 포인터/잘못된 FD 방어
+
+**선결:** Sprint 1 정상 경로
+
+| # | 테스트 | 카테고리 |
+| --- | --- | --- |
+| 11 | create-bad-ptr | 잘못된 포인터 |
+| 47 | exec-bad-ptr | 잘못된 포인터 |
+| 20 | open-bad-ptr | 잘못된 포인터 |
+| 26 | read-bad-ptr | 잘못된 포인터 |
+| 32 | write-bad-ptr | 잘못된 포인터 |
+| 10 | create-null | NULL/빈 문자열 |
+| 19 | open-null | NULL/빈 문자열 |
+| 18 | open-empty | NULL/빈 문자열 |
+| 24 | close-bad-fd | 잘못된 FD |
+| 23 | close-twice | 잘못된 FD |
+| 30 | read-bad-fd | 잘못된 FD |
+| 36 | write-bad-fd | 잘못된 FD |
+| 29 | read-stdout | 방향이 틀린 FD |
+| 35 | write-stdin | 방향이 틀린 FD |
+
+**DoD:** 14개 PASS. 사용자 포인터 검증을 모든 syscall 진입점에 일관 적용.
+
+</aside>
+
+---
+
+### Sprint 3 — 페이지 경계 처리
+
+<aside>
+
+**목표:** 사용자 버퍼가 페이지 경계를 가로지를 때의 안전한 복사
+
+**선결:** Sprint 2의 포인터 검증 + 프레임 단위 검증 루프
+
+| # | 테스트 | 카테고리 |
+| --- | --- | --- |
+| 14 | create-bound | 페이지 경계 |
+| 17 | open-boundary | 페이지 경계 |
+| 27 | read-boundary | 페이지 경계 |
+| 33 | write-boundary | 페이지 경계 |
+
+*(fork-boundary #42, exec-boundary #45는 Sprint 4·5에서 함께)*
+
+**DoD:** 4개 PASS. `boundary.h`/`boundary.c` 활용.
+
+</aside>
+
+---
+
+### Sprint 4 — fork
+
+<aside>
+
+**목표:** `fork` 시스콜 + 자식 프로세스의 FD 테이블 복제
+
+**선결:** Sprint 1·2, `process_fork`의 `__do_fork` 페이지 테이블 복제, FD 테이블 깊은 복사, 부모-자식 동기화 세마포어
+
+| # | 테스트 | 카테고리 |
+| --- | --- | --- |
+| 37 | fork-once | fork 기본 |
+| 38 | fork-multiple | fork 기본 |
+| 39 | fork-recursive | fork 기본 |
+| 40 | fork-read | FD 복제 |
+| 41 | fork-close | FD 복제 |
+| 42 | fork-boundary | 경계 |
+
+**DoD:** 6개 PASS. `parent_if` 보존, 자식의 fork 반환값 0.
+
+</aside>
+
+---
+
+### Sprint 5 — exec / wait & 다중 프로세스
+
+<aside>
+
+**목표:** `exec` 이미지 교체, `wait` 종료 코드 회수, 자식 종료 동기화
+
+**선결:** Sprint 4 fork, `struct thread`의 자식 리스트, 종료 세마포어, 이중 wait 방지
+
+| # | 테스트 | 카테고리 |
+| --- | --- | --- |
+| 43 | exec-once | exec |
+| 44 | exec-arg | exec |
+| 46 | exec-missing | exec |
+| 45 | exec-boundary | exec |
+| 49 | wait-simple | wait |
+| 50 | wait-twice | wait |
+| 52 | wait-bad-pid | wait |
+| 51 | wait-killed | wait |
+| 53 | multi-recurse | 다중 |
+| 54 | multi-child-fd | 다중 |
+
+**DoD:** 10개 PASS. exec 실패 시 -1 반환(exec-missing), 이미 wait된 자식 재wait 시 -1.
+
+</aside>
+
+---
+
+### Sprint 6 — 읽기 전용 실행 파일 (rox)
+
+<aside>
+
+**목표:** 실행 중인 파일에 대한 쓰기 거부 (`file_deny_write` / `file_allow_write`)
+
+**선결:** Sprint 1 파일 IO + Sprint 5 fork/exec
+
+| # | 테스트 | 카테고리 |
+| --- | --- | --- |
+| 55 | rox-simple | 단순 |
+| 56 | rox-child | 자식 프로세스 |
+| 57 | rox-multichild | 자식 프로세스 |
+| 48 | exec-read | exec + 파일 IO |
+
+**DoD:** 4개 PASS. `load()`에서 deny, `process_exit`에서 close 시 자동 allow.
+
+</aside>
+
+---
+
+### 핵심 수정 파일 (구현 시 참조)
+
+<aside>
+
+- `userprog/process.c` — argument_stack, process_fork/exec/wait/exit, load
+- `userprog/syscall.c` — 시스콜 디스패처 + 포인터 검증
+- `threads/thread.{c,h}` — FD 테이블, 자식 리스트, 종료 세마
+- `userprog/exception.c` — page fault → exit(-1)
+</aside>
+
+---
+
 *이 문서는 팀이 함께 만들어가는 문서입니다. 개선할 부분이 있으면 PR로 올려주세요.*
