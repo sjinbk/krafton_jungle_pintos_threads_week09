@@ -164,7 +164,8 @@ int
 process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
-
+	char *save_ptr;
+	char *argv[LOADER_ARGS_LEN / 2 + 1];
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
@@ -172,6 +173,17 @@ process_exec (void *f_name) {
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
+	/*캐릭터 가져오기, 빈칸찾기, 띄운다(분리한다)*/
+	/*캐릭터 가져오기 - 어디서: 유저의 입력, 파일 네임에서, 무엇을: 로ㄷ*/
+	/*빈칸찾기 - " "*/
+	/*띄우기 - 빈칸 하나끝나면 숫자매겨서 지정*/
+	char *token;
+	int i = 0;
+	for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
+		/**/
+		argv[i] = token;
+		i++;
+	}
 
 	/* We first kill the current context */
 	process_cleanup ();
