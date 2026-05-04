@@ -1,6 +1,13 @@
 {
     "name": "pintos-dev",
-    "dockerFile": "Dockerfile",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "..",
+        "args": {
+            "UBUNTU_PORTS_MIRROR_HTTP": "http://mirror.yuki.net.uk/ubuntu-ports",
+            "UBUNTU_PORTS_MIRROR_HTTPS": "https://mirror.yuki.net.uk/ubuntu-ports"
+        }
+    },
     "remoteUser": "jungle",
     "customizations": {
         "vscode": {
