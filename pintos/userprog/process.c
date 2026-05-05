@@ -178,11 +178,9 @@ process_exec (void *f_name) {
 	/*빈칸찾기 - " "*/
 	/*띄우기 - 빈칸 하나끝나면 숫자매겨서 지정*/
 	char *token;
-	int length=0;
 	int argc=0;
 	for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
 		argv[argc++] = token;
-		length += strlen(token);
 }
 	argv[argc] = NULL;
 	
