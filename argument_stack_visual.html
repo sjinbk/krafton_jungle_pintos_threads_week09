@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pintos Argument Passing Stack</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #1d2329;
+      background: #f5f7fb;
+    }
+
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 0 0 24px;
+      color: #56616d;
+      line-height: 1.6;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 1fr) minmax(360px, 1.25fr);
+      gap: 20px;
+      align-items: start;
+    }
+
+    section {
+      background: #ffffff;
+      border: 1px solid #dce3ec;
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 10px 24px rgba(31, 45, 61, 0.06);
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.95em;
+    }
+
+    .example {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      padding: 6px 10px;
+      border: 1px solid #cdd7e3;
+      border-radius: 999px;
+      background: #f8fafc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .note {
+      margin: 14px 0 0;
+      color: #56616d;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .stack-wrap {
+      display: grid;
+      grid-template-columns: 96px minmax(260px, 1fr) 150px;
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .axis {
+      display: grid;
+      grid-template-rows: repeat(11, minmax(42px, auto));
+      gap: 6px;
+      color: #6b7682;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      text-align: right;
+    }
+
+    .addr {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      min-height: 42px;
+    }
+
+    .stack {
+      display: grid;
+      grid-template-rows: repeat(11, minmax(42px, auto));
+      gap: 6px;
+      position: relative;
+    }
+
+    .cell {
+      min-height: 42px;
+      border: 1px solid #cdd7e3;
+      border-radius: 6px;
+      background: #fbfcfe;
+      display: grid;
+      grid-template-columns: 112px 1fr;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .cell strong {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      color: #25313d;
+      background: #eef3f8;
+      border-right: 1px solid #d7e0ea;
+      font-size: 13px;
+    }
+
+    .cell span {
+      padding: 8px 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      overflow-wrap: anywhere;
+    }
+
+    .fake {
+      border-color: #9fb4cc;
+      background: #f3f7fb;
+    }
+
+    .argv {
+      border-color: #82b8a7;
+      background: #f1fbf7;
+    }
+
+    .padding {
+      border-style: dashed;
+      background: #fffdf5;
+      border-color: #d8bf71;
+    }
+
+    .string {
+      border-color: #c49ad6;
+      background: #fbf5ff;
+    }
+
+    .labels {
+      display: grid;
+      grid-template-rows: repeat(11, minmax(42px, auto));
+      gap: 6px;
+      font-size: 13px;
+      color: #4f5b67;
+    }
+
+    .label {
+      display: flex;
+      align-items: center;
+      min-height: 42px;
+      line-height: 1.3;
+    }
+
+    .registers {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .reg {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      border: 1px solid #cdd7e3;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .reg strong {
+      padding: 10px;
+      background: #25313d;
+      color: #ffffff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .reg span {
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      overflow-wrap: anywhere;
+    }
+
+    .flow {
+      display: grid;
+      gap: 10px;
+      counter-reset: step;
+    }
+
+    .step {
+      border-left: 4px solid #4b7bec;
+      background: #f8fbff;
+      padding: 10px 12px;
+      line-height: 1.55;
+      border-radius: 6px;
+    }
+
+    .step::before {
+      counter-increment: step;
+      content: counter(step) ". ";
+      font-weight: 700;
+      color: #305fbc;
+    }
+
+    .warn {
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px solid #e6c36a;
+      border-radius: 6px;
+      background: #fff9e8;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .pointer-section {
+      margin-top: 20px;
+    }
+
+    .pointer-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .pointer-card {
+      border: 1px solid #d7e0ea;
+      border-radius: 8px;
+      background: #ffffff;
+      overflow: hidden;
+    }
+
+    .pointer-card h3 {
+      margin: 0;
+      padding: 10px 12px;
+      font-size: 15px;
+      letter-spacing: 0;
+      background: #eef3f8;
+      border-bottom: 1px solid #d7e0ea;
+    }
+
+    .pointer-card p {
+      margin: 0;
+      padding: 12px;
+      color: #4f5b67;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+
+    .memory-line {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      border: 1px solid #cdd7e3;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+
+    .memory-line strong {
+      padding: 10px;
+      background: #25313d;
+      color: #ffffff;
+    }
+
+    .memory-line span {
+      padding: 10px;
+      background: #fbfcfe;
+      overflow-wrap: anywhere;
+    }
+
+    .code-box {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 6px;
+      background: #1f2933;
+      color: #f8fafc;
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    @media (max-width: 860px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .stack-wrap {
+        grid-template-columns: 78px minmax(220px, 1fr);
+      }
+
+      .labels {
+        grid-column: 2;
+      }
+
+      .pointer-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Pintos 인자 전달 스택 그림</h1>
+    <p class="lead">
+      예시는 <code>echo hello world</code>를 실행한다고 가정합니다.
+      스택은 높은 주소에서 낮은 주소로 자라기 때문에, 아래 그림의 위쪽이 더 높은 주소입니다.
+    </p>
+
+    <div class="layout">
+      <section>
+        <h2>코드 흐름</h2>
+        <div class="example">
+          <div class="pill-row">
+            <span class="pill">argc = 3</span>
+            <span class="pill">argv[0] = "echo"</span>
+            <span class="pill">argv[1] = "hello"</span>
+            <span class="pill">argv[2] = "world"</span>
+          </div>
+        </div>
+
+        <div class="flow">
+          <div class="step">
+            문자열을 뒤에서부터 스택에 복사합니다.
+            복사 후 <code>argv_addr[i]</code>에는 각 문자열이 놓인 유저 스택 주소가 저장됩니다.
+          </div>
+          <div class="step">
+            <code>if_-&gt;rsp = (void *)((uint64_t) if_-&gt;rsp &amp; ~0x7)</code>로 8바이트 정렬을 맞춥니다.
+          </div>
+          <div class="step">
+            <code>argv_addr[argc] = NULL</code>까지 포함해서, 문자열 주소들을 다시 스택에 넣습니다.
+            이 구간이 유저 프로그램의 <code>argv</code> 배열입니다.
+          </div>
+          <div class="step">
+            <code>start_addr = if_-&gt;rsp</code>는 argv 배열의 시작 주소를 기억합니다.
+          </div>
+          <div class="step">
+            fake return address로 <code>NULL</code>을 하나 더 넣습니다.
+          </div>
+          <div class="step">
+            <code>rdi = argc</code>, <code>rsi = start_addr</code>로 유저 프로그램에 인자를 넘깁니다.
+          </div>
+        </div>
+
+        <p class="warn">
+          지금 선택한 코드의 <code>char *argv_addr[...] = NULL;</code>은 C에서 배열 초기화로는 맞지 않습니다.
+          <code>char *argv_addr[...] = { NULL };</code> 또는 <code>argv_addr[argc] = NULL;</code>을 따로 넣는 형태가 좋습니다.
+        </p>
+      </section>
+
+      <section>
+        <h2>최종 유저 스택 모양</h2>
+        <div class="stack-wrap">
+          <div class="axis">
+            <div class="addr">높은 주소</div>
+            <div class="addr">0x...ffef</div>
+            <div class="addr">0x...ffea</div>
+            <div class="addr">0x...ffe4</div>
+            <div class="addr">0x...ffe0</div>
+            <div class="addr">0x...ffd8</div>
+            <div class="addr">0x...ffd0</div>
+            <div class="addr">0x...ffc8</div>
+            <div class="addr">0x...ffc0</div>
+            <div class="addr">0x...ffb8</div>
+            <div class="addr">낮은 주소</div>
+          </div>
+
+          <div class="stack">
+            <div class="cell string"><strong>문자열</strong><span>"echo\0"</span></div>
+            <div class="cell string"><strong>문자열</strong><span>"hello\0"</span></div>
+            <div class="cell string"><strong>문자열</strong><span>"world\0"</span></div>
+            <div class="cell padding"><strong>정렬</strong><span>padding bytes</span></div>
+            <div class="cell argv"><strong>argv[3]</strong><span>NULL = 0x0</span></div>
+            <div class="cell argv"><strong>argv[2]</strong><span>주소: "world\0" 위치</span></div>
+            <div class="cell argv"><strong>argv[1]</strong><span>주소: "hello\0" 위치</span></div>
+            <div class="cell argv"><strong>argv[0]</strong><span>주소: "echo\0" 위치</span></div>
+            <div class="cell fake"><strong>return</strong><span>fake return address = NULL</span></div>
+            <div class="cell"><strong>if_-&gt;rsp</strong><span>do_iret 때 유저 rsp가 여기로 감</span></div>
+            <div class="cell"><strong></strong><span></span></div>
+          </div>
+
+          <div class="labels">
+            <div class="label">문자열 데이터</div>
+            <div class="label">문자열 데이터</div>
+            <div class="label">문자열 데이터</div>
+            <div class="label">8바이트 정렬용 빈칸</div>
+            <div class="label">argv 끝 표시</div>
+            <div class="label">argv 배열 원소</div>
+            <div class="label">argv 배열 원소</div>
+            <div class="label"><code>start_addr</code>, 즉 <code>rsi</code>가 가리키는 곳</div>
+            <div class="label">가짜 리턴 주소</div>
+            <div class="label">최종 <code>if_-&gt;rsp</code></div>
+            <div class="label"></div>
+          </div>
+        </div>
+
+        <div class="registers">
+          <div class="reg">
+            <strong>rdi</strong>
+            <span>3</span>
+          </div>
+          <div class="reg">
+            <strong>rsi</strong>
+            <span>start_addr = argv[0] 칸의 주소</span>
+          </div>
+        </div>
+
+        <p class="note">
+          <code>rsi</code>는 문자열 자체를 가리키지 않습니다.
+          <code>argv[0]</code>, <code>argv[1]</code>, <code>argv[2]</code>, <code>NULL</code>이 들어있는
+          포인터 배열의 첫 칸을 가리킵니다.
+        </p>
+      </section>
+    </div>
+
+    <section class="pointer-section">
+      <h2>포인터 해석</h2>
+      <p class="lead">
+        여기서 헷갈리는 핵심은 <code>if_-&gt;rsp</code>가 타입 있는 변수가 아니라
+        “스택의 현재 주소값”이라는 점입니다. 그래서 그 주소에 어떤 종류의 값을 쓸지
+        C에게 캐스팅으로 알려줘야 합니다.
+      </p>
+
+      <div class="pointer-grid">
+        <div class="pointer-card">
+          <h3><code>char *</code></h3>
+          <p>
+            문자 하나의 주소입니다. C 문자열은 첫 글자의 주소로 표현되므로
+            <code>"hello"</code>를 가리키는 값의 타입이 <code>char *</code>입니다.
+          </p>
+        </div>
+
+        <div class="pointer-card">
+          <h3><code>char **</code></h3>
+          <p>
+            <code>char *</code> 값을 저장하는 칸의 주소입니다.
+            즉 <code>argv[0]</code> 같은 문자열 포인터 하나를 써 넣으려면
+            그 저장 위치를 <code>char **</code>로 봅니다.
+          </p>
+        </div>
+
+        <div class="pointer-card">
+          <h3><code>void **</code></h3>
+          <p>
+            <code>void *</code> 값을 저장하는 칸의 주소입니다.
+            fake return address 자리에는 특정 타입의 포인터가 아니라
+            그냥 포인터 값 <code>NULL</code>을 넣으므로 이렇게 볼 수 있습니다.
+          </p>
+        </div>
+      </div>
+
+      <div class="code-box">if_-&gt;rsp -= sizeof(char *);
+*(char **) if_-&gt;rsp = argv_addr[i];</div>
+
+      <div class="memory-line">
+        <strong>왼쪽</strong>
+        <span><code>(char **) if_-&gt;rsp</code>: 이 주소를 <code>char *</code> 저장 칸의 주소로 해석</span>
+      </div>
+      <div class="memory-line">
+        <strong>오른쪽</strong>
+        <span><code>argv_addr[i]</code>: 실제로 저장할 <code>char *</code> 값, 즉 문자열이 있는 주소</span>
+      </div>
+      <div class="memory-line">
+        <strong>결과</strong>
+        <span><code>if_-&gt;rsp</code> 위치의 8바이트 칸에 문자열 주소 하나가 저장됨</span>
+      </div>
+
+      <div class="code-box">if_-&gt;rsp -= sizeof(void *);
+*(void **) if_-&gt;rsp = NULL;</div>
+
+      <div class="memory-line">
+        <strong>왼쪽</strong>
+        <span><code>(void **) if_-&gt;rsp</code>: 이 주소를 <code>void *</code> 저장 칸의 주소로 해석</span>
+      </div>
+      <div class="memory-line">
+        <strong>오른쪽</strong>
+        <span><code>NULL</code>: 저장할 포인터 값. 메모리에는 보통 <code>0x0000000000000000</code>이 들어감</span>
+      </div>
+      <div class="memory-line">
+        <strong>결과</strong>
+        <span>NULL 포인터의 주소를 넣는 것이 아니라, NULL 포인터 값 자체를 스택 칸에 저장함</span>
+      </div>
+
+      <p class="warn">
+        <code>*(char **) if_-&gt;rsp</code>에서 별표가 많아 보여도 “포인터가 여러 개 저장된다”는 뜻은 아닙니다.
+        <code>if_-&gt;rsp</code> 주소에 있는 8바이트 칸 하나를 골라서, 그 칸에 포인터 값 하나를 쓰는 표현입니다.
+      </p>
+    </section>
+  </main>
+</body>
+</html>

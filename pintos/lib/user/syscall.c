@@ -71,6 +71,7 @@ static __inline int64_t syscall (uint64_t num_, uint64_t a1_, uint64_t a2_,
 void
 halt (void) {
 	syscall0 (SYS_HALT);
+	power_off();
 	NOT_REACHED ();
 }
 
