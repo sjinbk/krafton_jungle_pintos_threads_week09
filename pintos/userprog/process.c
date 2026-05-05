@@ -350,7 +350,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
 static bool
-load (const char **argv, int argc, struct intr_frame *if_) {
+load (char **argv, int argc, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -445,7 +445,8 @@ load (const char **argv, int argc, struct intr_frame *if_) {
 	
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-	char *argv_addr[LOADER_ARGS_LEN / 2 + 1] = NULL;
+	char *argv_addr[LOADER_ARGS_LEN / 2 + 1];
+	argv_addr[argc] = NULL;
 	void *start_addr;
 	size_t len = sizeof(char *);
 	for (int i = argc-1 ; i >= 0 ; i--){
