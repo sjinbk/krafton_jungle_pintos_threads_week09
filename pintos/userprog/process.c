@@ -189,10 +189,10 @@ process_exec (void *f_name) {
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (argv, &_if);
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
+	palloc_free_page (argv[0]);
 	if (!success)
 		return -1;
 
@@ -428,7 +428,8 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-
+	/*rdi= argc 즉 파싱된 덩어리 개수*/
+	/*rsi= argv 시작 주소*/
 	success = true;
 
 done:
@@ -556,6 +557,7 @@ setup_stack (struct intr_frame *if_) {
 	if (kpage != NULL) {
 		success = install_page (((uint8_t *) USER_STACK) - PGSIZE, kpage, true);
 		if (success)
+
 			if_->rsp = USER_STACK;
 		else
 			palloc_free_page (kpage);
