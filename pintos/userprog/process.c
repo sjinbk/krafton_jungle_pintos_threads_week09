@@ -23,7 +23,7 @@
 #endif
 
 static void process_cleanup (void);
-static bool load (const char *file_name, struct intr_frame *if_);
+static bool load (char ** argv, int argc, struct intr_frame *if_);
 static void initd (void *f_name);
 static void __do_fork (void *);
 
@@ -178,23 +178,37 @@ process_exec (void *f_name) {
 	/*빈칸찾기 - " "*/
 	/*띄우기 - 빈칸 하나끝나면 숫자매겨서 지정*/
 	char *token;
-	int i = 0;
+	int length=0;
+	int argc=0;
 	for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
-		/**/
-		argv[i] = token;
-		i++;
-	}
+		argv[argc++] = token;
+		length += strlen(token);
+}
+	argv[argc] = NULL;
+	
+
 
 	/* We first kill the current context */
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (argv,argc, &_if);
 
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
 	if (!success)
 		return -1;
+
+	// _if.R.rdi = argc;
+	// _if.R.rsi = &argv;
+	
+
+	
+	// size_t dump_size = USER_STACK - _if.rsp;
+	// if(dump_size >128)
+	// 	dump_size = 128;
+
+	// hex_dump(_if.rsp,(void *) _if.rsp, dump_size, true);
 
 	/* Start switched process. */
 	do_iret (&_if);
@@ -216,6 +230,9 @@ process_wait (tid_t child_tid UNUSED) {
 	/* XXX: Hint) The pintos exit if process_wait (initd), we recommend you
 	 * XXX:       to add infinite loop here before
 	 * XXX:       implementing the process_wait. */
+	while(true){
+		thread_yield();
+	}
 	return -1;
 }
 
@@ -333,7 +350,7 @@ static bool load_segment (struct file *file, off_t ofs, uint8_t *upage,
  * and its initial stack pointer into *RSP.
  * Returns true if successful, false otherwise. */
 static bool
-load (const char *file_name, struct intr_frame *if_) {
+load (const char **argv, int argc, struct intr_frame *if_) {
 	struct thread *t = thread_current ();
 	struct ELF ehdr;
 	struct file *file = NULL;
@@ -348,9 +365,9 @@ load (const char *file_name, struct intr_frame *if_) {
 	process_activate (thread_current ());
 
 	/* Open executable file. */
-	file = filesys_open (file_name);
+	file = filesys_open (argv[0]);
 	if (file == NULL) {
-		printf ("load: %s: open failed\n", file_name);
+		printf ("load: %s: open failed\n", argv[0]);
 		goto done;
 	}
 
@@ -362,7 +379,7 @@ load (const char *file_name, struct intr_frame *if_) {
 			|| ehdr.e_version != 1
 			|| ehdr.e_phentsize != sizeof (struct Phdr)
 			|| ehdr.e_phnum > 1024) {
-		printf ("load: %s: error loading executable\n", file_name);
+		printf ("load: %s: error loading executable\n", argv[0]);
 		goto done;
 	}
 
@@ -425,9 +442,32 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* Start address. */
 	if_->rip = ehdr.e_entry;
-
+	
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
+	char *argv_addr[LOADER_ARGS_LEN / 2 + 1] = NULL;
+	void *start_addr;
+	size_t len = sizeof(char *);
+	for (int i = argc-1 ; i >= 0 ; i--){
+		len = strlen(argv[i])+1;
+		if_->rsp -= len;
+		memcpy((void*)if_->rsp,argv[i],len);
+		argv_addr[i] = (char *) if_->rsp; 
+	}
+	len = sizeof(char *);
+	if_->rsp =(void *)((uint64_t) if_->rsp & ~0x7);
+	for(int i = argc;i>=0;i--){
+		if_->rsp -= len;
+		*(char **) if_->rsp = argv_addr[i];
+	}
+	
+	start_addr = if_->rsp;
+	if_->rsp -= sizeof(void *);
+	*(void **)if_->rsp = NULL;
+
+	if_->R.rdi = argc;
+	if_->R.rsi = (uint64_t)start_addr;
+
 
 	success = true;
 
