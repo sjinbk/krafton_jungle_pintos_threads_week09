@@ -2,6 +2,7 @@
     "name": "pintos-dev",
     "dockerFile": "Dockerfile",
     "remoteUser": "jungle",
+    "runArgs": ["--platform=linux/amd64"],
     "customizations": {
         "vscode": {
             "extensions": [
