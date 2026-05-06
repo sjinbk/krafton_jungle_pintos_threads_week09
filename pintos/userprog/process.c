@@ -340,7 +340,7 @@ load (const char **argv, struct intr_frame *if_) {
 	off_t file_ofs;
 	bool success = false;
 	int i;
-	/*파일 네임을 알그브로 바꿔야했다. 336첫번째인자바꿈-기존에인자파싱안되어있음-올바른파일네임전달*/
+	/*파일 네임을 알그브로 바꿔야했다. 336첫번째인자바꿈-기존에인자파싱안되어있음-올바른파일네임전달.*/
 	char *file_name = argv[0];
 
 	/* Allocate and activate page directory. */
