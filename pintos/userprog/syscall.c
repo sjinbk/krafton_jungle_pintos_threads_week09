@@ -3,6 +3,7 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/init.h"
 #include "threads/loader.h"
 #include "userprog/gdt.h"
 #include "threads/flags.h"
@@ -42,5 +43,17 @@ void
 syscall_handler (struct intr_frame *f UNUSED) {
 	// TODO: Your implementation goes here.
 	printf ("system call!\n");
+	switch (f->R.rax){
+		case(SYS_HALT):
+			power_off();
+			break;
+		case(SYS_EXIT):
+			
+			thread_exit();
+			break;
+		default:
+			thread_exit();
+			break;
+	}
 	thread_exit ();
 }
