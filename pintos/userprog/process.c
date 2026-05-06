@@ -164,7 +164,8 @@ int
 process_exec (void *f_name) {
 	char *file_name = f_name;
 	bool success;
-
+	char *save_ptr;
+	char *argv[LOADER_ARGS_LEN / 2 + 1];
 	/* We cannot use the intr_frame in the thread structure.
 	 * This is because when current thread rescheduled,
 	 * it stores the execution information to the member. */
@@ -172,15 +173,26 @@ process_exec (void *f_name) {
 	_if.ds = _if.es = _if.ss = SEL_UDSEG;
 	_if.cs = SEL_UCSEG;
 	_if.eflags = FLAG_IF | FLAG_MBS;
+	/*캐릭터 가져오기, 빈칸찾기, 띄운다(분리한다)*/
+	/*캐릭터 가져오기 - 어디서: 유저의 입력, 파일 네임에서, 무엇을: 로ㄷ*/
+	/*빈칸찾기 - " "*/
+	/*띄우기 - 빈칸 하나끝나면 숫자매겨서 지정*/
+	char *token;
+	int i = 0;
+	for (token = strtok_r (file_name, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)){
+		/**/
+		argv[i] = token;
+		i++;
+	}
 
 	/* We first kill the current context */
 	process_cleanup ();
 
 	/* And then load the binary */
-	success = load (file_name, &_if);
+	success = load (argv, &_if);
 
 	/* If load failed, quit. */
-	palloc_free_page (file_name);
+	palloc_free_page (argv[0]);
 	if (!success)
 		return -1;
 
@@ -416,7 +428,8 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* TODO: Your code goes here.
 	 * TODO: Implement argument passing (see project2/argument_passing.html). */
-
+	/*rdi= argc 즉 파싱된 덩어리 개수*/
+	/*rsi= argv 시작 주소*/
 	success = true;
 
 done:
@@ -544,6 +557,7 @@ setup_stack (struct intr_frame *if_) {
 	if (kpage != NULL) {
 		success = install_page (((uint8_t *) USER_STACK) - PGSIZE, kpage, true);
 		if (success)
+
 			if_->rsp = USER_STACK;
 		else
 			palloc_free_page (kpage);
