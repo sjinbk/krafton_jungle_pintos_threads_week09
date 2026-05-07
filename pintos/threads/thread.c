@@ -455,6 +455,12 @@ init_thread(struct thread *t, const char *name, int priority)
 	t->magic = THREAD_MAGIC;
 	t->wait_lock = NULL;
 	list_init(&t->donated_list);
+#ifdef USERPROG
+	list_init (&t->child_list);
+	t->wait_status = NULL;
+	t->executable_file = NULL;
+	t->exit_status = -1;
+#endif
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
